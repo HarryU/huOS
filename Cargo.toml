@@ -5,3 +5,6 @@ authors = ["Harry Uzzell <hmucs@yahoo.co.uk>"]
 
 [lib]
 crate-type = ["staticlib"]
+
+[dependencies]
+rlibc = "1.0"
