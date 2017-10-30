@@ -2,7 +2,7 @@ Install the requirements:
 
 For compiling assembler and building/running the iso:
 ```
-sudo apt-get install nasm xorriso grub-common
+sudo apt-get install nasm xorriso grub-common qemu-system
 ```
 For cross-compiling the rust, install [rustup](https://www.rustup.rs/):
 ```
