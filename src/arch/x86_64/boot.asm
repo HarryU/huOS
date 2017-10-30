@@ -5,6 +5,7 @@ section .text
 bits 32
 start:
     mov esp, stack_top
+	mov edi, ebx
     
     call check_multiboot
     call check_cpuid
@@ -84,7 +85,11 @@ check_long_mode:
     jmp error
 
 set_up_page_tables:
-    mov eax, p3_table             ; map first P4 entry to P3 table via eax
+	mov eax, p4_table
+	or eax, 0b11
+	mov [p4_table + 511 * 8], eax ; map P4 recursively
+
+	mov eax, p3_table             ; map first P4 entry to P3 table via eax
     or eax, 0b11                  ; set present + writable bits
     mov [p4_table], eax           ; put P3 with present + writable set into P4
 
@@ -154,5 +159,5 @@ p3_table:
 p2_table:
     resb 4096
 stack_bottom:
-    resb 64
+    resb 4096 * 4
 stack_top:
