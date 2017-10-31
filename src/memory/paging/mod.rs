@@ -1,5 +1,5 @@
-use memory::PAGE_SIZE;
-use memory::Frame;
+use memory::{PAGE_SIZE, Frame, FrameAllocator};
+pub use self::entry::*;
 
 mod entry;
 
