@@ -1,19 +1,26 @@
 pub use self::entry::*;
+pub use self::mapper::Mapper;
 
 use memory::{PAGE_SIZE, Frame, FrameAllocator};
 use self::table::{Table, Level4};
+use self::temporary_page::TemporaryPage;
 
 use core::ptr::Unique;
+use core::ops::{Deref, DerefMut};
 use x86_64::instructions::tlb;
+use x86_64::registers::control_regs;
 
 mod entry;
 mod table;
+mod temporary_page;
+mod mapper;
 
 const ENTRY_COUNT: usize = 512;
 
 pub type PhysicalAddress = usize;
 pub type VirtualAddress  = usize;
 
+#[derive(Debug, Clone, Copy)]
 pub struct Page {
     number: usize,
 }
@@ -47,111 +54,57 @@ impl Page {
 }
 
 pub struct ActivePageTable {
-    p4: Unique<Table<Level4>>,
+    mapper: Mapper,
+}
+
+impl Deref for ActivePageTable {
+    type Target = Mapper;
+
+    fn deref(&self) -> &Mapper {
+        &self.mapper
+    }
+}
+
+impl DerefMut for ActivePageTable {
+    fn deref_mut(&mut self) -> &mut Mapper {
+        &mut self.mapper
+    }
 }
 
 impl ActivePageTable {
-    pub unsafe fn new() -> ActivePageTable {
+    unsafe fn new() -> ActivePageTable {
         ActivePageTable {
-            p4: Unique::new_unchecked(table::P4),
+            mapper: Mapper::new(),
         }
     }
 
-    fn p4(&self) -> &Table<Level4> {
-        unsafe { self.p4.as_ref() }
-    }
-
-    fn p4_mut(&mut self) -> &mut Table<Level4> {
-        unsafe { self.p4.as_mut() }
-    }
-
-    pub fn translate(&self, virtual_address: VirtualAddress) -> Option<PhysicalAddress> {
-        let offset = virtual_address % PAGE_SIZE;
-        self.translate_page(Page::containing_address(virtual_address)).map(|frame| frame.number * PAGE_SIZE + offset)
-    }
-
-    pub fn translate_page(&self, page: Page) -> Option<Frame> {
-        use self::entry::HUGE_PAGE;
-
-        let p3 = self.p4().next_table(page.p4_index());
-
-        let huge_page = || { // This is called if any of the steps through tables 
-            // on the way to a valid frame return None - i.e. the 
-            // next table has an entry that is either not present
-            // or a huge page. If it is a huge page, this closure
-            // correctly translates it.
-            p3.and_then(|p3| {
-                let p3_entry = &p3[page.p3_index()];
-                if let Some(start_frame) = p3_entry.pointed_frame() {
-                    if p3_entry.flags().contains(HUGE_PAGE) {
-                        assert!(start_frame.number % (ENTRY_COUNT * ENTRY_COUNT) == 0);
-                        return Some(Frame { number: start_frame.number + page.p2_index() * ENTRY_COUNT + page.p1_index(), });
-                    }
-                }
-                if let Some(p2) = p3.next_table(page.p3_index()) {
-                    let p2_entry = &p2[page.p2_index()];
-                    if let Some(start_frame) = p2_entry.pointed_frame() {
-                        if p2_entry.flags().contains(HUGE_PAGE) {
-                            assert!(start_frame.number % ENTRY_COUNT == 0);
-                            return Some(Frame { number: start_frame.number + page.p1_index() });
-                        }
-                    }
-                }
-                None
-            })
-        };
-
-        p3.and_then(|p3| p3.next_table(page.p3_index()))
-            .and_then(|p2| p2.next_table(page.p2_index()))
-            .and_then(|p1| p1[page.p1_index()].pointed_frame())
-            .or_else(huge_page)
-    }
-
-    pub fn map_to<A>(&mut self,
-                     page: Page,
-                     frame: Frame,
-                     flags: EntryFlags,
-                     allocator: &mut A)
-        where A: FrameAllocator
+    pub fn with<F>(&mut self, table: &mut InactivePageTable, f: F) where F: FnOnce(&mut Mapper)
+    {
         {
-            let mut p3 = self.p4_mut().next_table_create(page.p4_index(), allocator);
-            let mut p2 = p3.next_table_create(page.p3_index(), allocator);
-            let mut p1 = p2.next_table_create(page.p2_index(), allocator);
+        let backup = Frame::containing_address(unsafe { control_regs::cr3() } as usize);
+        let p4_table = temporary_page.map_table_frame(backup.clone(), self);
+        self.p4_mut()[511].set(table.p4_frame.clone(), PRESENT | WRITABLE);
+        tlb::flush_all();
+        f(self);
+        p4_table[511
+        } // inner scope ensures the table variable is dropped before unmapping the temporary page.
+        temporary_page.unmap(self);
+    }
+}
 
-            assert!(p1[page.p1_index()].is_unused());
-            p1[page.p1_index()].set(frame, flags | PRESENT);
-        }
+pub struct InactivePageTable {
+    p4_frame: Frame
+}
 
-    pub fn map<A>(&mut self, page: Page, flags: EntryFlags, allocator: &mut A)
-        where A: FrameAllocator
+impl InactivePageTable {
+    pub fn new(frame: Frame, active_table: &mut ActivePageTable, temporary_page: &mut TemporaryPage) -> InactivePageTable
+    {
         {
-            let frame = allocator.allocate_frame().expect("out of memory");
-            self.map_to(page, frame, flags, allocator)
-        }
-
-    pub fn identity_map<A>(&mut self, frame: Frame, flags: EntryFlags, allocator: &mut A)
-        where A: FrameAllocator
-        {
-            let page = Page::containing_address(frame.start_address());
-            self.map_to(page, frame, flags, allocator)
-        }
-
-    fn unmap<A>(&mut self, page: Page, allocator: &mut A)
-        where A: FrameAllocator
-        {
-            assert!(self.translate(page.start_address()).is_some());
-
-            let p1 = self.p4_mut()
-                .next_table_mut(page.p4_index())
-                .and_then(|p3| p3.next_table_mut(page.p3_index()))
-                .and_then(|p2| p2.next_table_mut(page.p2_index()))
-                .expect("Mapping huge pages is unsupported in huOS");
-            let frame = p1[page.p1_index()].pointed_frame().unwrap();
-            p1[page.p1_index()].set_unused();
-
-            use x86_64::VirtualAddress;
-            tlb::flush(VirtualAddress(page.start_address()));
-            // TODO free p(1, 2, 3) tables if empty.
-            allocator.deallocate_frame(frame);
-        }
+            let table = temporary_page.map_table_frame(frame.clone(), active_table);
+            table.zero();
+            table[511].set(frame.clone(), PRESENT | WRITABLE);
+        } // inner scope ensures the table variable is dropped before unmapping the temporary page.
+        temporary_page.unmap(active_table);
+        InactivePageTable { p4_frame: frame }
+    }
 }
