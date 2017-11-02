@@ -15,6 +15,7 @@ impl TemporaryPage {
             allocator: TinyAllocator::new(allocator),
         }
     }
+
     pub fn map(&mut self, frame: Frame, active_table: &mut ActivePageTable) -> VirtualAddress
     {
         use super::entry::WRITABLE;

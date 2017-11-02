@@ -11,7 +11,7 @@ pub struct Mapper {
 impl Mapper {
     pub unsafe fn new() -> Mapper {
         Mapper {
-            p4: Unique::new(table::P4),
+            p4: Unique::new_unchecked(table::P4),
         }
     }
 
@@ -29,8 +29,6 @@ impl Mapper {
     }
 
     pub fn translate_page(&self, page: Page) -> Option<Frame> {
-        use self::entry::HUGE_PAGE;
-
         let p3 = self.p4().next_table(page.p4_index());
 
         let huge_page = || {
@@ -98,6 +96,9 @@ impl Mapper {
     pub fn unmap<A>(&mut self, page: Page, allocator: &mut A)
         where A: FrameAllocator
         {
+            use x86_64::instructions::tlb;
+            use x86_64::VirtualAddress;
+
             assert!(self.translate(page.start_address()).is_some());
 
             let p1 = self.p4_mut()
@@ -108,8 +109,8 @@ impl Mapper {
             let frame = p1[page.p1_index()].pointed_frame().unwrap();
             p1[page.p1_index()].set_unused();
 
-            use x86_64::VirtualAddress;
             tlb::flush(VirtualAddress(page.start_address()));
             // TODO free p(1, 2, 3) tables if empty.
-            allocator.deallocate_frame(frame);
+            // allocator.deallocate_frame(frame);
         }
+}

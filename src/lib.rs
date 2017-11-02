@@ -17,26 +17,14 @@ mod vga_buffer;
 mod memory;
 
 #[no_mangle]
-pub extern fn rust_main(multiboot_information_address: usize) {
+pub extern "C" fn rust_main(multiboot_information_address: usize) {
     use memory::FrameAllocator;
 
     vga_buffer::clear_screen();
 
     let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
     let memory_map_tag = boot_info.memory_map_tag().expect("Memory map tag required");
-
-    println!("memory areas:");
-    for area in memory_map_tag.memory_areas() {
-        println!("      start: 0x{:x}, length: 0x{:x}",
-                 area.base_addr, area.length);
-    }
-
-    let elf_sections_tag = boot_info.elf_sections_tag().expect("Elf-sections tag required");
-
-    println!("kernel sections:");
-    for section in elf_sections_tag.sections() {
-        println!("      addr: 0x{:x}, size: 0x{:x}, flags: 0x{:x}", section.addr, section.size, section.flags);
-    }
+    let elf_sections_tag = boot_info.elf_sections_tag().expect("Elf sections tag required");
 
     let kernel_start = elf_sections_tag.sections().map(|s| s.addr).min().unwrap();
     let kernel_end = elf_sections_tag.sections().map(|s| s.addr + s.size).max().unwrap();
@@ -47,13 +35,14 @@ pub extern fn rust_main(multiboot_information_address: usize) {
     let mut frame_allocator = memory::AreaFrameAllocator::new(kernel_start as usize, kernel_end as usize,
                                                               multiboot_start, multiboot_end, memory_map_tag.memory_areas());
 
-    for i in 0.. {
-        if let None = frame_allocator.allocate_frame() {
-            println!("allocated {} frames", i);
-            break;
-        }
-    }
-
+    println!("kernel start: 0x{:x}, kernel end: 0x{:x}",
+             kernel_start, kernel_end);
+    println!("multiboot start: 0x{:x}, multiboot end: 0x{:x}",
+             multiboot_start, multiboot_end);
+    enable_nxe_bit();
+    memory::remap_the_kernel(&mut frame_allocator, boot_info);
+    frame_allocator.allocate_frame();
+    println!("It did not crash!");
     loop{}
 }
 
@@ -65,4 +54,20 @@ pub extern fn panic_fmt(fmt: core::fmt::Arguments, file: &'static str, line: u32
     println!("\n\nPANIC in {} at line {}:", file, line);
     println!("      {}", fmt);
     loop{}
+}
+
+fn enable_nxe_bit() {
+    use x86_64::registers::msr::{IA32_EFER, rdmsr, wrmsr};
+
+    let nxe_bit = 1 << 11;
+    unsafe {
+        let efer = rdmsr(IA32_EFER);
+        wrmsr(IA32_EFER, efer | nxe_bit);
+    }
+}
+
+fn enable_write_protect_bit() {
+    use x86_64::registers::control_regs::{cr0, cr0_write, Cr0};
+
+    unsafe { cr0_write(cr0() | Cr0::WRITE_PROTECT) };
 }
