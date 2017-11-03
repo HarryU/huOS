@@ -12,9 +12,10 @@ rustup component add rust-src
 cargo install xargo
 ```
 
-
 And then to run:
 
 ```
 make run
 ```
+
+For debugging, setup [gdb](https://www.gnu.org/software/gdb/) like [this](https://os.phil-opp.com/set-up-gdb/)
