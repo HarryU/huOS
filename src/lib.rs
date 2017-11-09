@@ -21,6 +21,8 @@ extern crate rlibc;
 extern crate spin;
 extern crate volatile;
 extern crate x86_64;
+extern crate bit_field;
+extern crate cpuio;
 
 #[macro_use]
 mod vga_buffer;
@@ -41,8 +43,9 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     enable_write_protect_bit();
 
     // remap the kernel, set up the guard page and map the heap pages
-    memory::init(boot_info);
-    interrupts::init();
+    let mut memory_controller = memory::init(boot_info);
+
+    interrupts::init(&mut memory_controller);
 
     println!("It did not crash!");
     loop{}

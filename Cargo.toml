@@ -14,6 +14,8 @@ multiboot2 = ">=0.1.0"
 bitflags = "0.9.1"
 x86_64 = "0.1.2"
 once = "0.3.2"
+bit_field = "0.7.0"
+cpuio = "*"
 
 [dependencies.lazy_static]
 version = "0.2.4"
