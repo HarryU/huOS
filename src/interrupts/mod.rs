@@ -1,6 +1,6 @@
 use memory::MemoryController;
 use spin::{Once, Mutex};
-use pci::ChainedPics;
+use pic::ChainedPics;
 
 use x86_64::structures::idt::{Idt, ExceptionStackFrame};
 use x86_64::structures::tss::TaskStateSegment;
@@ -12,6 +12,8 @@ mod gdt;
 const DOUBLE_FAULT_IST_INDEX: usize = 0;
 static TSS: Once<TaskStateSegment> = Once::new();
 static GDT: Once<gdt::Gdt>         = Once::new();
+
+static PICS: Mutex<ChainedPics> = Mutex::new(unsafe { ChainedPics::new(0x20, 0x28) });
 
 lazy_static! {
     static ref IDT: Idt = {

@@ -28,6 +28,7 @@ extern crate cpuio;
 mod vga_buffer;
 mod memory;
 mod interrupts;
+mod pic;
 
 pub const HEAP_START: usize = 0o_000_001_000_000_0000; // heap starts at the second P3 entry
 pub const HEAP_SIZE:  usize = 100 * 1024;              // 100KiB
