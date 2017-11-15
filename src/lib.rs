@@ -4,6 +4,7 @@
 #![feature(const_unique_new)]
 #![feature(alloc)]
 #![feature(abi_x86_interrupt)]
+#![feature(asm)]
 #![no_std]
 
 extern crate hole_list_allocator as allocator;
@@ -20,6 +21,7 @@ extern crate once;
 extern crate rlibc;
 extern crate spin;
 extern crate volatile;
+#[macro_use]
 extern crate x86_64;
 extern crate bit_field;
 extern crate cpuio;
@@ -29,6 +31,7 @@ mod vga_buffer;
 mod memory;
 mod interrupts;
 mod pic;
+mod keyboard;
 
 pub const HEAP_START: usize = 0o_000_001_000_000_0000; // heap starts at the second P3 entry
 pub const HEAP_SIZE:  usize = 100 * 1024;              // 100KiB
@@ -46,7 +49,13 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     // remap the kernel, set up the guard page and map the heap pages
     let mut memory_controller = memory::init(boot_info);
 
-    interrupts::init(&mut memory_controller);
+    unsafe {
+        interrupts::init(&mut memory_controller);
+    }
+
+    unsafe {
+        asm!("sti");
+    }
 
     println!("It did not crash!");
     loop{}

@@ -48,30 +48,36 @@ impl ChainedPics {
     }
 
     pub unsafe fn init(&mut self) {
-        let mut wait_port: Port<u8> = Port::new(0x80);
-        let mut wait = || { wait_port.write(0) };
+        /// remap the PICs so they know their offset and master/slave wiring etc.
+        let mut wait_port: Port<u8> = Port::new(0x80); // Its harmless to write 0 to 0x80,
+                                                       // but it takes a little bit of time
+                                                       // so we can use it to create a wait
+                                                       // without a clock.
+        let mut wait = || { wait_port.write(0) };      // Wait closure.
 
-        let saved_mask_1 = self.pics[0].data.read();
-        let saved_mask_2 = self.pics[1].data.read();
+        let saved_mask_1 = self.pics[0].data.read();   // Save the masks so we don't have to
+        let saved_mask_2 = self.pics[1].data.read();   // guess sensible values.
 
-        self.pics[0].command.write(CMD_INIT);
-        wait();
-        self.pics[1].command.write(CMD_INIT);
+        self.pics[0].command.write(CMD_INIT);          // Write the init command to each PIC.
+        wait();                                        // Wait in between to allow the message
+        self.pics[1].command.write(CMD_INIT);          // time to be read.
         wait();
 
-        self.pics[0].data.write(self.pics[0].offset);
-        wait();
+        self.pics[0].data.write(self.pics[0].offset);  // Write the information required to
+        wait();                                        // set things up.
         self.pics[1].data.write(self.pics[1].offset);
         wait();
-        self.pics[0].data.write(4);
-        wait();
-        self.pics[1].data.write(2);
-        wait();
+        self.pics[0].data.write(4);                    // 4 is the location of PIC2 (the slave)
+        wait();                                        // it corresponds to IRQ2 (0000 0100)
+        self.pics[1].data.write(2);                    // 2 tells PIC2 (the slave) its cascade
+        wait();                                        // ID (000 0010)
+
         self.pics[0].data.write(MODE_8086);
         wait();
         self.pics[1].data.write(MODE_8086);
         wait();
 
+        println!("{:b}\n{:b}\n", saved_mask_1, saved_mask_2);
         self.pics[0].data.write(saved_mask_1);
         self.pics[1].data.write(saved_mask_2);
     }

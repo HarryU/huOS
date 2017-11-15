@@ -9,28 +9,36 @@ use x86_64::instructions::port::inb;
 
 mod gdt;
 
+static PICS: Mutex<ChainedPics> = Mutex::new(unsafe { ChainedPics::new(0x20, 0x28) });
 const DOUBLE_FAULT_IST_INDEX: usize = 0;
 static TSS: Once<TaskStateSegment> = Once::new();
 static GDT: Once<gdt::Gdt>         = Once::new();
-
-static PICS: Mutex<ChainedPics> = Mutex::new(unsafe { ChainedPics::new(0x20, 0x28) });
 
 lazy_static! {
     static ref IDT: Idt = {
         let mut idt = Idt::new();
 
         unsafe {
-        idt.double_fault.set_handler_fn(double_fault_handler)
-            .set_stack_index(DOUBLE_FAULT_IST_INDEX as u16);
+            idt.double_fault.set_handler_fn(double_fault_handler)
+                .set_stack_index(DOUBLE_FAULT_IST_INDEX as u16);
         }
 
         idt.breakpoint.set_handler_fn(breakpoint_handler);
+
+        for i in 0..224 {
+            if  i == 1 {
+                idt.interrupts[i].set_handler_fn(keyboard_handler);
+            } else {
+                idt.interrupts[i].set_handler_fn(dummy_handler);
+            }
+        }
 
         idt
     };
 }
 
-pub fn init(memory_controller: &mut MemoryController) {
+pub unsafe fn init(memory_controller: &mut MemoryController) {
+    PICS.lock().init();
     use x86_64::structures::gdt::SegmentSelector;
     use x86_64::instructions::segmentation::set_cs;
     use x86_64::instructions::tables::load_tss;
@@ -73,4 +81,21 @@ extern "x86-interrupt" fn double_fault_handler(stack_frame: &mut ExceptionStackF
     loop {}
 }
 
-static PICS: Mutex<ChainedPics> = Mutex::new(unsafe { ChainedPics::new(0x20, 0x28) });
+extern "x86-interrupt" fn keyboard_handler(stack_frame: &mut ExceptionStackFrame)
+{
+    use keyboard::{read_scancode_from_keyboard};
+
+    if let Some(input) = read_scancode_from_keyboard() {
+        if input == '\r' {
+            println!("");
+        } else {
+            print!("{}", input);
+        }
+    }
+    unsafe { PICS.lock().notify_end_of_interrupt(0x21 as u8); }
+}
+
+extern "x86-interrupt" fn dummy_handler(stack_frame: &mut ExceptionStackFrame)
+{
+    unsafe { PICS.lock().notify_end_of_interrupt(0x20 as u8); }
+}
