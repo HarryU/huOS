@@ -1,5 +1,6 @@
 use spin::Mutex;
 use x86_64::instructions::port::inb;
+use drivers::keymaps::{Keymap, GB};
 
 struct KeyPair {
     left:  bool,
@@ -45,6 +46,10 @@ impl Modifiers {
             if self.use_uppercase_letters() {
                 return ascii - b'a' + b'A';
             }
+        } else if b'\\' == ascii {
+            if self.use_uppercase_letters() {
+                return b'|';
+            }
         }
         ascii
     }
@@ -67,10 +72,26 @@ impl Modifiers {
 
 struct Keyboard {
     modifiers: Modifiers,
+    keymap: Keymap,
+}
+
+impl Keyboard {
+    fn register_keypress(&mut self, scancode: u8) -> char {
+        if self.modifiers.use_uppercase_letters() {
+            if self.modifiers.shift.is_pressed() {
+                self.keymap.shift_chars[scancode as usize]
+            } else {
+                self.keymap.caps_chars[scancode as usize]
+            }
+        } else {
+            self.keymap.chars[scancode as usize]
+        }
+    }
 }
 
 static KEYBOARD: Mutex<Keyboard> = Mutex::new(Keyboard {
     modifiers: Modifiers::new(),
+    keymap: GB,
 });
 
 pub fn read_scancode_from_keyboard() -> Option<char> {
@@ -78,24 +99,16 @@ pub fn read_scancode_from_keyboard() -> Option<char> {
 
     let scancode: u8;
     unsafe { scancode = inb(0x60); };
-
     keyboard.modifiers.update(scancode);
-    if let Some(ascii) = match_ascii_scancode(scancode) {
-        Some(keyboard.modifiers.apply_modifiers(ascii) as char)
+    if scancode < 0x80 {
+        let ascii = keyboard.register_keypress(scancode);
+
+        if !ascii.is_control()  {
+            return Some(ascii as char)
+        } else {
+            return None
+        }
     } else {
         None
     }
-}
-
-fn match_ascii_scancode(scancode: u8) -> Option<u8> {
-    let idx = scancode as usize;
-    let character = match scancode {
-        0x01 ... 0x0E => Some(b"\x1B1234567890-=\0x02"[idx-0x01]),
-        0x0F ... 0x1C => Some(b"\tqwertyuiop[]\r"[idx-0x0F]),
-        0x1E ... 0x28 => Some(b"asdfghjkl;'"[idx-0x1E]),
-        0x2C ... 0x35 => Some(b"zxcvbnm,./"[idx-0x2C]),
-        0x39 => Some(b' '),
-        _ => None,
-    };
-    character
 }

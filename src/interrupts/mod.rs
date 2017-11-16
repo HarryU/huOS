@@ -62,10 +62,8 @@ pub unsafe fn init(memory_controller: &mut MemoryController) {
 
     gdt.load();
 
-    unsafe {
-        set_cs(code_selector);
-        load_tss(tss_selector);
-    }
+    set_cs(code_selector);
+    load_tss(tss_selector);
 
     IDT.load();
 }
@@ -83,7 +81,7 @@ extern "x86-interrupt" fn double_fault_handler(stack_frame: &mut ExceptionStackF
 
 extern "x86-interrupt" fn keyboard_handler(stack_frame: &mut ExceptionStackFrame)
 {
-    use keyboard::{read_scancode_from_keyboard};
+    use drivers::keyboard::{read_scancode_from_keyboard};
 
     if let Some(input) = read_scancode_from_keyboard() {
         if input == '\r' {
