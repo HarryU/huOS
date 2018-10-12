@@ -39,7 +39,7 @@ $(kernel): kernel $(rust_os) $(assembly_object_files) $(linker_script)
 	@ld -n --gc-sections -T $(linker_script) -o $(kernel) $(assembly_object_files) $(rust_os)
 
 kernel:
-	@xargo build --target=x86_64-huOS
+	@rustup run nightly cargo xbuild --target x86_64-huOS.json
 
 build/arch/$(arch)/%.o: src/arch/$(arch)/%.asm
 	@mkdir -p $(shell dirname $@)
