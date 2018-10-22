@@ -29,10 +29,10 @@ extern crate cpuio;
 
 #[macro_use]
 mod vga_buffer;
-mod memory;
-mod interrupts;
-mod pic;
 mod drivers;
+mod interrupts;
+mod memory;
+mod pic;
 
 pub const HEAP_START: usize = 0o_000_001_000_000_0000; // heap starts at the second P3 entry
 pub const HEAP_SIZE: usize = 100 * 1024; // 100KiB
@@ -46,12 +46,12 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
 
     vga_buffer::clear_screen();
 
-    let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
+    let boot_info = unsafe { multiboot2::load(multiboot_information_address) };
     enable_nxe_bit();
     enable_write_protect_bit();
 
     // remap the kernel, set up the guard page and map the heap pages
-    let mut memory_controller = memory::init(boot_info);
+    let mut memory_controller = memory::init(&boot_info);
 
     unsafe {
         interrupts::init(&mut memory_controller);
@@ -62,11 +62,11 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     }
 
     println!("It did not crash!");
-    loop{}
+    loop {}
 }
 
 fn enable_nxe_bit() {
-    use x86_64::registers::msr::{IA32_EFER, rdmsr, wrmsr};
+    use x86_64::registers::msr::{rdmsr, wrmsr, IA32_EFER};
 
     let nxe_bit = 1 << 11;
     unsafe {

@@ -1,4 +1,4 @@
-use cpuio::{UnsafePort, Port};
+use cpuio::{Port, UnsafePort};
 
 // Command sent to begin PIC initialization.
 const CMD_INIT: u8 = 0x11;
@@ -36,14 +36,14 @@ impl ChainedPics {
                 Pic {
                     offset: offset1,
                     command: UnsafePort::new(0x20),
-                    data:    UnsafePort::new(0x21),
+                    data: UnsafePort::new(0x21),
                 },
                 Pic {
                     offset: offset2,
                     command: UnsafePort::new(0xA0),
-                    data:    UnsafePort::new(0xA1),
+                    data: UnsafePort::new(0xA1),
                 },
-            ]
+            ],
         }
     }
 
@@ -53,24 +53,24 @@ impl ChainedPics {
                                                        // but it takes a little bit of time
                                                        // so we can use it to create a wait
                                                        // without a clock.
-        let mut wait = || { wait_port.write(0) };      // Wait closure.
+        let mut wait = || wait_port.write(0); // Wait closure.
 
-        let saved_mask_1 = self.pics[0].data.read();   // Save the masks so we don't have to
-        let saved_mask_2 = self.pics[1].data.read();   // guess sensible values.
+        let saved_mask_1 = self.pics[0].data.read(); // Save the masks so we don't have to
+        let saved_mask_2 = self.pics[1].data.read(); // guess sensible values.
 
-        self.pics[0].command.write(CMD_INIT);          // Write the init command to each PIC.
-        wait();                                        // Wait in between to allow the message
-        self.pics[1].command.write(CMD_INIT);          // time to be read.
+        self.pics[0].command.write(CMD_INIT); // Write the init command to each PIC.
+        wait(); // Wait in between to allow the message
+        self.pics[1].command.write(CMD_INIT); // time to be read.
         wait();
 
-        self.pics[0].data.write(self.pics[0].offset);  // Write the information required to
-        wait();                                        // set things up.
+        self.pics[0].data.write(self.pics[0].offset); // Write the information required to
+        wait(); // set things up.
         self.pics[1].data.write(self.pics[1].offset);
         wait();
-        self.pics[0].data.write(4);                    // 4 is the location of PIC2 (the slave)
-        wait();                                        // it corresponds to IRQ2 (0000 0100)
-        self.pics[1].data.write(2);                    // 2 tells PIC2 (the slave) its cascade
-        wait();                                        // ID (000 0010)
+        self.pics[0].data.write(4); // 4 is the location of PIC2 (the slave)
+        wait(); // it corresponds to IRQ2 (0000 0100)
+        self.pics[1].data.write(2); // 2 tells PIC2 (the slave) its cascade
+        wait(); // ID (000 0010)
 
         self.pics[0].data.write(MODE_8086);
         wait();

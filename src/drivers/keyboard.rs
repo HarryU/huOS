@@ -1,9 +1,9 @@
+use drivers::keymaps::{Keymap, GB};
 use spin::Mutex;
 use x86_64::instructions::port::inb;
-use drivers::keymaps::{Keymap, GB};
 
 struct KeyPair {
-    left:  bool,
+    left: bool,
     right: bool,
 }
 
@@ -21,18 +21,18 @@ impl KeyPair {
 }
 
 struct Modifiers {
-    shift:     KeyPair,
-    control:   KeyPair,
-    alt:       KeyPair,
+    shift: KeyPair,
+    control: KeyPair,
+    alt: KeyPair,
     caps_lock: bool,
 }
 
 impl Modifiers {
     const fn new() -> Self {
         Modifiers {
-            shift:     KeyPair::new(),
-            control:   KeyPair::new(),
-            alt:       KeyPair::new(),
+            shift: KeyPair::new(),
+            control: KeyPair::new(),
+            alt: KeyPair::new(),
             caps_lock: false,
         }
     }
@@ -65,7 +65,7 @@ impl Modifiers {
             0xAA => self.shift.left = false,
             0xB6 => self.shift.right = false,
             0xB8 => self.alt.left = false,
-            _    => {},
+            _ => {}
         }
     }
 }
@@ -98,7 +98,9 @@ pub fn read_scancode_from_keyboard() -> Option<char> {
     let mut keyboard = KEYBOARD.lock();
 
     let scancode: u8;
-    unsafe { scancode = inb(0x60); };
+    unsafe {
+        scancode = inb(0x60);
+    };
     keyboard.modifiers.update(scancode);
     if scancode < 0x80 {
         let ascii = keyboard.register_keypress(scancode);
@@ -106,7 +108,7 @@ pub fn read_scancode_from_keyboard() -> Option<char> {
         if !ascii.is_control()  {
             return Some(ascii as char)
         } else {
-            return None
+            None
         }
     } else {
         None
