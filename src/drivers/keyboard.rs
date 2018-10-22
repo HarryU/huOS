@@ -104,9 +104,10 @@ pub fn read_scancode_from_keyboard() -> Option<char> {
     keyboard.modifiers.update(scancode);
     if scancode < 0x80 {
         let ascii = keyboard.register_keypress(scancode);
-
-        if !ascii.is_control()  {
-            return Some(ascii as char)
+        if !ascii.is_control() {
+            return Some(ascii as char);
+        } else if (ascii == '\x7F') || (ascii == '\n') {
+            return (Some(ascii));
         } else {
             None
         }

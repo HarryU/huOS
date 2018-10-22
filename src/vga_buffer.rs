@@ -94,14 +94,24 @@ impl Writer {
         self.column_position = 0;
     }
 
+    fn backspace(&mut self) {
+        let new_column_position = self.column_position - 1;
+        self.clear_character(BUFFER_HEIGHT - 1, new_column_position);
+        self.column_position = new_column_position;
+    }
+
     fn clear_row(&mut self, row: usize) {
+        for col in 0..BUFFER_WIDTH {
+            self.clear_character(row, col);
+        }
+    }
+
+    fn clear_character(&mut self, row: usize, col: usize) {
         let blank = ScreenChar {
             ascii_character: b' ',
             colour_code: self.colour_code,
         };
-        for col in 0..BUFFER_WIDTH {
-            self.buffer().chars[row][col].write(blank);
-        }
+        self.buffer().chars[row][col].write(blank);
     }
 }
 
@@ -127,6 +137,7 @@ macro_rules! print {
 }
 
 macro_rules! println {
+    () => (print!("\n"));
     ($fmt:expr) => (print!(concat!($fmt, "\n")));
     ($fmt:expr, $($arg:tt)*) => (print!(concat!($fmt, "\n"), $($arg)*));
 }
@@ -140,4 +151,9 @@ pub fn clear_screen() {
     for _ in 0..BUFFER_HEIGHT {
         println!("");
     }
+}
+
+pub fn backspace() {
+    use core::fmt::Write;
+    WRITER.lock().backspace();
 }
