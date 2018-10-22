@@ -1,10 +1,11 @@
+#![feature(ptr_internals)]
+#![feature(panic_implementation)]
 #![feature(lang_items)]
 #![feature(const_fn)]
-#![feature(unique)]
-#![feature(const_unique_new)]
 #![feature(alloc)]
 #![feature(abi_x86_interrupt)]
 #![feature(asm)]
+#![feature(alloc_error_handler)]
 #![no_std]
 
 extern crate hole_list_allocator as allocator;
@@ -34,7 +35,10 @@ mod pic;
 mod drivers;
 
 pub const HEAP_START: usize = 0o_000_001_000_000_0000; // heap starts at the second P3 entry
-pub const HEAP_SIZE:  usize = 100 * 1024;              // 100KiB
+pub const HEAP_SIZE: usize = 100 * 1024; // 100KiB
+
+#[global_allocator]
+static GLOBAL_ALLOC: allocator::Allocator = allocator::Allocator;
 
 #[no_mangle]
 pub extern "C" fn rust_main(multiboot_information_address: usize) {
@@ -77,12 +81,30 @@ fn enable_write_protect_bit() {
     unsafe { cr0_write(cr0() | Cr0::WRITE_PROTECT) };
 }
 
-#[lang = "eh_personality"] extern fn eh_personality() {}
+#[lang = "eh_personality"]
+extern "C" fn eh_personality() {}
 
-#[lang = "panic_fmt"]
+use core::panic::PanicInfo;
+
+#[panic_implementation]
 #[no_mangle]
-pub extern fn panic_fmt(fmt: core::fmt::Arguments, file: &'static str, line: u32) -> ! {
-    println!("\n\nPANIC in {} at line {}:", file, line);
-    println!("      {}", fmt);
-    loop{}
+pub fn panic(panic_info: &PanicInfo) -> ! {
+    unsafe {
+        if let Some(location) = panic_info.location() {
+            println!(
+                "\n\nPANIC in {} at line {}:",
+                location.file(),
+                location.line()
+            );
+            loop {}
+        } else {
+            println!("\n\nPANIC but can't get location information.");
+            loop {}
+        }
+    }
+}
+
+#[alloc_error_handler]
+fn alloc_error(_: core::alloc::Layout) -> ! {
+    panic!("Alloc error!");
 }

@@ -1,8 +1,10 @@
-use super::{VirtualAddress, PhysicalAddress, Page, ENTRY_COUNT};
+#![feature(ptr_internals)]
+
 use super::entry::*;
-use super::table::{self, Table, Level4, Level1};
-use memory::{PAGE_SIZE, Frame, FrameAllocator};
+use super::table::{self, Level1, Level4, Table};
+use super::{Page, PhysicalAddress, VirtualAddress, ENTRY_COUNT};
 use core::ptr::Unique;
+use memory::{Frame, FrameAllocator, PAGE_SIZE};
 
 pub struct Mapper {
     p4: Unique<Table<Level4>>,

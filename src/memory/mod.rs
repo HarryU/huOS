@@ -1,9 +1,11 @@
+#![feature(ptr_internals)]
+
 pub use self::area_frame_allocator::AreaFrameAllocator;
 pub use self::paging::remap_the_kernel;
-pub use self::stack_allocator::Stack;
 use self::paging::PhysicalAddress;
-use multiboot2::BootInformation;
+pub use self::stack_allocator::Stack;
 use allocator;
+use multiboot2::BootInformation;
 
 mod area_frame_allocator;
 mod paging;

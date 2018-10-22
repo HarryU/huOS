@@ -1,4 +1,5 @@
-use core::ptr::Unique;
+#![feature(ptr_internals)]
+
 use core::fmt;
 use spin::Mutex;
 use volatile::Volatile;

@@ -1,3 +1,5 @@
+#![feature(ptr_internals)]
+
 pub use self::entry::*;
 pub use self::mapper::Mapper;
 
