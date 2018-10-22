@@ -21,8 +21,5 @@ cpuio = "*"
 version = "0.2.4"
 features = ["spin_no_std"]
 
-[dependencies.bump_allocator]
-path = "libs/bump_allocator"
-
 [dependencies.hole_list_allocator]
 path = "libs/hole_list_allocator"
